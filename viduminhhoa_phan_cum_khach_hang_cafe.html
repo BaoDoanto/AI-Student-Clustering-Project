@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phân Cụm Khách Hàng Quán Cà Phê – Hierarchical Clustering</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #f0f4ff;
+    color: #1e293b;
+    min-height: 100vh;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    background: linear-gradient(135deg, #1b2a6b 0%, #2563eb 70%, #0ea5e9 100%);
+    color: white;
+    padding: 28px 36px 22px;
+  }
+  .header h1 { font-size: 1.55rem; font-weight: 700; margin-bottom: 5px; }
+  .header p  { font-size: 0.88rem; opacity: 0.82; margin-bottom: 14px; }
+  .badges    { display: flex; flex-wrap: wrap; gap: 8px; }
+  .badge {
+    display: inline-block; padding: 4px 14px; border-radius: 20px;
+    font-size: 0.78rem; font-weight: 700; border: 1.5px solid;
+  }
+  .b-vip  { background: #ede9fe; color: #4c1d95; border-color: #a78bfa; }
+  .b-freq { background: #d1fae5; color: #065f46; border-color: #34d399; }
+  .b-pot  { background: #fef3c7; color: #78350f; border-color: #fbbf24; }
+  .b-dorm { background: #fee2e2; color: #7f1d1d; border-color: #fca5a5; }
+
+  /* ── LAYOUT ── */
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
+
+  /* ── METRIC CARDS ── */
+  .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+  .metric-card {
+    background: white; border-radius: 10px; padding: 16px 18px;
+    border: 1px solid #e0e7ff; border-top: 4px solid;
+  }
+  .metric-card .val { font-size: 1.6rem; font-weight: 700; margin: 4px 0; }
+  .metric-card .lbl { font-size: 0.78rem; color: #64748b; }
+  .metric-card .sub { font-size: 0.72rem; color: #94a3b8; margin-top: 2px; }
+
+  /* ── TABS ── */
+  .tabs {
+    display: flex; gap: 4px; margin-bottom: 20px;
+    border-bottom: 2px solid #dbeafe;
+    overflow-x: auto;
+  }
+  .tab {
+    padding: 9px 20px; border: none; background: none;
+    font-size: 0.88rem; font-weight: 600; color: #64748b;
+    cursor: pointer; border-bottom: 3px solid transparent;
+    margin-bottom: -2px; white-space: nowrap;
+    transition: color 0.2s, border-color 0.2s;
+  }
+  .tab.active { color: #1b2a6b; border-bottom-color: #1b2a6b; }
+  .tab:hover:not(.active) { color: #2563eb; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* ── CARDS ── */
+  .card {
+    background: white; border-radius: 12px; border: 1px solid #e0e7ff;
+    padding: 20px 22px; margin-bottom: 16px;
+  }
+  .card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 14px; color: #1e3a8a; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+
+  /* ── SEGMENT CARDS ── */
+  .seg-card {
+    border-radius: 10px; border: 1.5px solid; padding: 16px 18px; margin-bottom: 14px;
+  }
+  .seg-card .seg-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 10px; flex-wrap: wrap; gap: 6px;
+  }
+  .seg-card .seg-title { font-size: 1rem; font-weight: 700; }
+  .seg-card .seg-count { font-size: 0.78rem; opacity: 0.7; font-weight: 400; }
+  .kv { display: flex; justify-content: space-between; font-size: 0.83rem;
+        color: #64748b; padding: 4px 0; border-bottom: 1px solid rgba(0,0,0,0.05); }
+  .kv:last-child { border-bottom: none; }
+  .kv b { color: #1e293b; }
+  .rec {
+    margin-top: 12px; padding: 10px 14px; border-radius: 8px;
+    font-size: 0.82rem; border-left: 4px solid; line-height: 1.7;
+  }
+  .members { font-size: 0.75rem; color: #94a3b8; margin-top: 4px; word-break: break-all; }
+
+  /* ── TABLE ── */
+  .tbl-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid #e0e7ff; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+  th {
+    background: #1b2a6b; color: white; padding: 10px 14px;
+    text-align: left; font-weight: 600;
+  }
+  td { padding: 9px 14px; border-bottom: 1px solid #f1f5f9; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #f8faff; }
+  .pill {
+    display: inline-block; font-size: 0.75rem; font-weight: 700;
+    padding: 3px 11px; border-radius: 20px;
+  }
+
+  /* ── DENDROGRAM SVG ── */
+  .dend-wrap { overflow-x: auto; background: #f8faff; border-radius: 10px; padding: 10px; }
+  .dend-wrap svg { display: block; min-width: 700px; }
+
+  /* ── COMPARE TABLE ── */
+  .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .compare-card {
+    border-radius: 10px; border: 1px solid #e0e7ff; padding: 18px 20px;
+  }
+  .compare-card h4 { font-size: 0.95rem; font-weight: 700; margin-bottom: 12px; }
+  .note-box {
+    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px;
+    padding: 12px 16px; font-size: 0.84rem; line-height: 1.7; color: #1e40af;
+  }
+
+  /* ── INFO BLOCK ── */
+  .info {
+    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px;
+    padding: 12px 16px; font-size: 0.82rem; color: #1e40af; margin-top: 12px;
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    text-align: center; padding: 20px; font-size: 0.78rem;
+    color: #94a3b8; border-top: 1px solid #e0e7ff; margin-top: 20px;
+  }
+
+  @media (max-width: 700px) {
+    .metrics { grid-template-columns: 1fr 1fr; }
+    .grid2, .compare-grid { grid-template-columns: 1fr; }
+    .grid4 { grid-template-columns: 1fr 1fr; }
+    .header { padding: 18px 16px; }
+    .container { padding: 14px 10px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <h1>☕ Phân Cụm Khách Hàng Quán Cà Phê</h1>
+  <p>Ví dụ minh họa thực tế · Áp dụng thuật toán Gom Cụm Phân Cấp (Hierarchical Clustering) · 40 khách hàng · 4 nhóm</p>
+  <div class="badges">
+    <span class="badge b-vip">🏆 VIP – Cao cấp</span>
+    <span class="badge b-freq">☕ Thường Xuyên</span>
+    <span class="badge b-pot">💡 Tiềm Năng</span>
+    <span class="badge b-dorm">😴 Ngủ Quên</span>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- METRICS -->
+  <div class="metrics">
+    <div class="metric-card" style="border-top-color:#7c3aed">
+      <div class="lbl">Tổng khách hàng</div>
+      <div class="val" style="color:#7c3aed">40</div>
+      <div class="sub">Dữ liệu thu thập 1 tháng</div>
+    </div>
+    <div class="metric-card" style="border-top-color:#059669">
+      <div class="lbl">Số cụm phân nhóm</div>
+      <div class="val" style="color:#059669">4</div>
+      <div class="sub">Chọn qua Dendrogram</div>
+    </div>
+    <div class="metric-card" style="border-top-color:#2563eb">
+      <div class="lbl">Đặc trưng 1</div>
+      <div class="val" style="color:#2563eb;font-size:1.1rem">Tần suất</div>
+      <div class="sub">Số lần ghé/tháng</div>
+    </div>
+    <div class="metric-card" style="border-top-color:#d97706">
+      <div class="lbl">Đặc trưng 2</div>
+      <div class="val" style="color:#d97706;font-size:1.1rem">Chi tiêu</div>
+      <div class="sub">Nghìn đồng / lần ghé</div>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('scatter')">📊 Phân bố cụm</button>
+    <button class="tab" onclick="showTab('dend')">🌳 Dendrogram</button>
+    <button class="tab" onclick="showTab('segs')">🔍 Phân tích 4 nhóm</button>
+    <button class="tab" onclick="showTab('data')">📋 Dữ liệu</button>
+    <button class="tab" onclick="showTab('bar')">📈 Biểu đồ cột</button>
+    <button class="tab" onclick="showTab('compare')">🔗 So sánh với SV</button>
+  </div>
+
+  <!-- PANEL: SCATTER -->
+  <div id="panel-scatter" class="panel active">
+    <div class="card">
+      <h3>Ma trận phân bố – Tần suất ghé × Chi tiêu trung bình</h3>
+      <div style="position:relative;width:100%;height:400px">
+        <canvas id="scatterChart"
+          role="img"
+          aria-label="Scatter plot phân bố 40 khách hàng theo tần suất ghé thăm và chi tiêu, chia 4 màu nhóm">
+          Biểu đồ phân tán 40 khách hàng cà phê theo 4 nhóm.
+        </canvas>
+      </div>
+      <div id="sc-legend" style="display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:0.83rem;color:#475569"></div>
+      <div class="info">
+        📌 <strong>Đọc biểu đồ:</strong> Trục X = số lần ghé/tháng, Trục Y = chi tiêu TB (nghìn đồng).
+        Các điểm gần nhau = khách hàng có hành vi tương đồng → HC gộp chúng vào cùng nhóm.
+        Đường kẻ đứt là ngưỡng tham chiếu phân tách nhóm.
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL: DENDROGRAM -->
+  <div id="panel-dend" class="panel">
+    <div class="card">
+      <h3>Dendrogram – Sơ đồ cây phân cấp 40 khách hàng</h3>
+      <div class="dend-wrap">
+        <svg id="dendSvg" viewBox="0 0 860 420" style="width:100%;height:420px"></svg>
+      </div>
+      <div class="info" style="margin-top:12px">
+        📌 <strong>Đọc Dendrogram:</strong>
+        Chiều cao nhánh = khoảng cách liên kết khi 2 cụm gộp — nhánh càng thấp, 2 khách hàng càng giống nhau.
+        <strong>Đường đỏ đứt</strong> là ngưỡng cắt → ra đúng 4 nhóm phân biệt.
+        Màu lá = nhóm của từng khách hàng.
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL: SEGMENTS -->
+  <div id="panel-segs" class="panel">
+    <div id="seg-content"></div>
+  </div>
+
+  <!-- PANEL: DATA -->
+  <div id="panel-data" class="panel">
+    <div class="card">
+      <h3>Bảng dữ liệu 40 khách hàng</h3>
+      <div style="margin-bottom:12px;display:flex;gap:10px;flex-wrap:wrap">
+        <select id="filterSeg" onchange="renderTable()" style="padding:6px 12px;border:1px solid #dbeafe;border-radius:6px;font-size:0.83rem">
+          <option value="ALL">Tất cả nhóm</option>
+          <option value="VIP">VIP</option>
+          <option value="FREQUENT">Thường Xuyên</option>
+          <option value="POTENTIAL">Tiềm Năng</option>
+          <option value="DORMANT">Ngủ Quên</option>
+        </select>
+        <select id="sortCol" onchange="renderTable()" style="padding:6px 12px;border:1px solid #dbeafe;border-radius:6px;font-size:0.83rem">
+          <option value="freq-desc">Tần suất ↓</option>
+          <option value="freq-asc">Tần suất ↑</option>
+          <option value="spend-desc">Chi tiêu ↓</option>
+          <option value="spend-asc">Chi tiêu ↑</option>
+        </select>
+      </div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Khách hàng</th><th>Tần suất/tháng</th><th>Chi tiêu TB (K)</th><th>Nhóm</th><th>Hướng xử lý</th></tr></thead>
+        <tbody id="dataTbody"></tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <!-- PANEL: BAR -->
+  <div id="panel-bar" class="panel">
+    <div class="grid2">
+      <div class="card">
+        <h3>Tần suất ghé TB theo nhóm</h3>
+        <div style="position:relative;width:100%;height:280px">
+          <canvas id="barFreq" role="img" aria-label="Biểu đồ cột tần suất ghé trung bình của 4 nhóm khách hàng">Tần suất ghé trung bình theo nhóm.</canvas>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Chi tiêu TB theo nhóm (nghìn đồng)</h3>
+        <div style="position:relative;width:100%;height:280px">
+          <canvas id="barSpend" role="img" aria-label="Biểu đồ cột chi tiêu trung bình của 4 nhóm khách hàng">Chi tiêu trung bình theo nhóm.</canvas>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Số lượng khách hàng mỗi nhóm</h3>
+      <div style="position:relative;width:100%;height:260px">
+        <canvas id="pieChart" role="img" aria-label="Biểu đồ tỉ lệ phần trăm 4 nhóm khách hàng">Tỉ lệ 4 nhóm khách hàng.</canvas>
+      </div>
+      <div id="pie-legend" style="display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;font-size:0.83rem;color:#475569;justify-content:center"></div>
+    </div>
+  </div>
+
+  <!-- PANEL: COMPARE -->
+  <div id="panel-compare" class="panel">
+    <div class="compare-grid">
+      <div class="compare-card" style="border-left:5px solid #7c3aed">
+        <h4 style="color:#7c3aed">📘 Đề tài gốc: Gom cụm Sinh viên</h4>
+        <div class="kv"><span>Bài toán</span><b>Phân nhóm học lực sinh viên</b></div>
+        <div class="kv"><span>Đặc trưng 1</span><b>Điểm GPA (thang 0–4)</b></div>
+        <div class="kv"><span>Đặc trưng 2</span><b>Điểm Rèn luyện (0–110)</b></div>
+        <div class="kv"><span>Số mẫu</span><b>60 sinh viên</b></div>
+        <div class="kv"><span>Nhóm 1</span><b>🏆 Học Bá – GPA≥3.6, RL≥90</b></div>
+        <div class="kv"><span>Nhóm 2</span><b>📚 Học Thuật – GPA≥3.2, RL&lt;80</b></div>
+        <div class="kv"><span>Nhóm 3</span><b>⭐ Năng Nổ – RL≥80, GPA thấp</b></div>
+        <div class="kv"><span>Nhóm 4</span><b>⚠️ Cần Hỗ Trợ – cả 2 thấp</b></div>
+        <div class="kv"><span>Mục tiêu</span><b>Cá nhân hóa hỗ trợ đào tạo</b></div>
+      </div>
+      <div class="compare-card" style="border-left:5px solid #059669">
+        <h4 style="color:#059669">☕ Ví dụ mới: Gom cụm Khách hàng Cà Phê</h4>
+        <div class="kv"><span>Bài toán</span><b>Phân khúc khách hàng</b></div>
+        <div class="kv"><span>Đặc trưng 1</span><b>Tần suất ghé (lần/tháng)</b></div>
+        <div class="kv"><span>Đặc trưng 2</span><b>Chi tiêu TB (nghìn đồng)</b></div>
+        <div class="kv"><span>Số mẫu</span><b>40 khách hàng</b></div>
+        <div class="kv"><span>Nhóm 1</span><b>🏆 VIP – ghé nhiều, chi nhiều</b></div>
+        <div class="kv"><span>Nhóm 2</span><b>☕ Thường Xuyên – ghé nhiều, chi ít</b></div>
+        <div class="kv"><span>Nhóm 3</span><b>💡 Tiềm Năng – ít ghé, chi nhiều</b></div>
+        <div class="kv"><span>Nhóm 4</span><b>😴 Ngủ Quên – cả 2 đều thấp</b></div>
+        <div class="kv"><span>Mục tiêu</span><b>Chiến lược marketing mục tiêu</b></div>
+      </div>
+    </div>
+    <div class="note-box">
+      <strong>Điểm chung – cùng 1 thuật toán, khác bài toán:</strong><br>
+      ✅ Cả hai đều là bài toán <strong>học máy không giám sát</strong> – không cần nhãn sẵn.<br>
+      ✅ Cả hai đều dùng <strong>Min-Max Scaling</strong> để cân bằng trọng số 2 đặc trưng có thang đo khác nhau.<br>
+      ✅ Cả hai đều dùng <strong>Ward Linkage + Euclidean Distance</strong>, chọn k bằng cách cắt Dendrogram.<br>
+      ✅ Kết quả đều tạo ra <strong>4 nhóm có ngữ nghĩa rõ ràng</strong>, phục vụ ra quyết định thực tế.
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<footer>
+  Đề tài: <strong>Áp dụng thuật toán Gom Cụm Phân Cấp vào Bài Toán Gom Cụm Sinh Viên</strong>
+  &nbsp;|&nbsp; Ví dụ minh họa thực tế: Phân cụm Khách hàng Quán Cà Phê
+  &nbsp;|&nbsp; Nhóm 3 – GVHD: Huỳnh Thị Châu Lan
+</footer>
+
+<script>
+// ── DỮ LIỆU ──────────────────────────────────────────────────────────────────
+const SEG_CFG = {
+  VIP:       { label:'VIP',           color:'#7c3aed', bg:'#ede9fe', border:'#c4b5fd', textCol:'#4c1d95',
+               icon:'🏆', badge:'b-vip',
+               desc:'Ghé thường xuyên, chi tiêu cao nhất. Khách hàng cốt lõi tạo ra phần lớn doanh thu.',
+               rec:'Tặng thẻ thành viên Gold, ưu đãi sinh nhật, mời trải nghiệm sản phẩm mới trước. Phân công nhân viên chăm sóc riêng.' },
+  FREQUENT:  { label:'Thường Xuyên',  color:'#059669', bg:'#d1fae5', border:'#6ee7b7', textCol:'#065f46',
+               icon:'☕', badge:'b-freq',
+               desc:'Ghé nhiều nhưng chủ yếu gọi đồ uống giá thấp. Trung thành với quán, ít thử menu mới.',
+               rec:'Triển khai combo "upsell" ưu đãi. Mời tham gia chương trình tích điểm để kéo lên VIP.' },
+  POTENTIAL: { label:'Tiềm Năng',     color:'#d97706', bg:'#fef3c7', border:'#fcd34d', textCol:'#78350f',
+               icon:'💡', badge:'b-pot',
+               desc:'Ít ghé nhưng mỗi lần chi tiêu rất cao. Thường đến dịp đặc biệt hoặc đưa khách.',
+               rec:'Gửi voucher "Ghé lần 2 giảm 20%". Thông báo happy hour, sự kiện cuối tuần để tăng tần suất.' },
+  DORMANT:   { label:'Ngủ Quên',      color:'#dc2626', bg:'#fee2e2', border:'#fca5a5', textCol:'#7f1d1d',
+               icon:'😴', badge:'b-dorm',
+               desc:'Cả tần suất lẫn chi tiêu đều thấp. Đang "lạnh dần" với thương hiệu, có nguy cơ mất hẳn.',
+               rec:'Chiến dịch re-engagement: email "Chúng tôi nhớ bạn!" kèm voucher hết hạn 7 ngày. Khảo sát lý do vắng mặt.' },
+};
+
+// 40 khách hàng – dữ liệu minh họa
+const CUSTOMERS = [
+  // VIP (8 KH)
+  {id:'KH01',freq:24,spend:138,seg:'VIP'},{id:'KH02',freq:22,spend:125,seg:'VIP'},
+  {id:'KH03',freq:27,spend:145,seg:'VIP'},{id:'KH04',freq:20,spend:118,seg:'VIP'},
+  {id:'KH05',freq:25,spend:133,seg:'VIP'},{id:'KH06',freq:21,spend:142,seg:'VIP'},
+  {id:'KH07',freq:26,spend:128,seg:'VIP'},{id:'KH08',freq:23,spend:136,seg:'VIP'},
+  // FREQUENT (12 KH)
+  {id:'KH09',freq:18,spend:52,seg:'FREQUENT'},{id:'KH10',freq:20,spend:44,seg:'FREQUENT'},
+  {id:'KH11',freq:16,spend:58,seg:'FREQUENT'},{id:'KH12',freq:19,spend:48,seg:'FREQUENT'},
+  {id:'KH13',freq:15,spend:62,seg:'FREQUENT'},{id:'KH14',freq:22,spend:41,seg:'FREQUENT'},
+  {id:'KH15',freq:17,spend:55,seg:'FREQUENT'},{id:'KH16',freq:20,spend:46,seg:'FREQUENT'},
+  {id:'KH17',freq:14,spend:60,seg:'FREQUENT'},{id:'KH18',freq:18,spend:50,seg:'FREQUENT'},
+  {id:'KH19',freq:21,spend:43,seg:'FREQUENT'},{id:'KH20',freq:16,spend:57,seg:'FREQUENT'},
+  // POTENTIAL (10 KH)
+  {id:'KH21',freq:5,spend:118,seg:'POTENTIAL'},{id:'KH22',freq:7,spend:132,seg:'POTENTIAL'},
+  {id:'KH23',freq:4,spend:108,seg:'POTENTIAL'},{id:'KH24',freq:8,spend:125,seg:'POTENTIAL'},
+  {id:'KH25',freq:6,spend:115,seg:'POTENTIAL'},{id:'KH26',freq:5,spend:122,seg:'POTENTIAL'},
+  {id:'KH27',freq:9,spend:110,seg:'POTENTIAL'},{id:'KH28',freq:4,spend:135,seg:'POTENTIAL'},
+  {id:'KH29',freq:7,spend:119,seg:'POTENTIAL'},{id:'KH30',freq:6,spend:128,seg:'POTENTIAL'},
+  // DORMANT (10 KH)
+  {id:'KH31',freq:2,spend:35,seg:'DORMANT'},{id:'KH32',freq:3,spend:42,seg:'DORMANT'},
+  {id:'KH33',freq:1,spend:28,seg:'DORMANT'},{id:'KH34',freq:4,spend:38,seg:'DORMANT'},
+  {id:'KH35',freq:2,spend:32,seg:'DORMANT'},{id:'KH36',freq:3,spend:45,seg:'DORMANT'},
+  {id:'KH37',freq:1,spend:30,seg:'DORMANT'},{id:'KH38',freq:4,spend:36,seg:'DORMANT'},
+  {id:'KH39',freq:2,spend:40,seg:'DORMANT'},{id:'KH40',freq:3,spend:34,seg:'DORMANT'},
+];
+
+const SEG_ORDER = ['VIP','FREQUENT','POTENTIAL','DORMANT'];
+
+// ── TABS ──────────────────────────────────────────────────────────────────────
+function showTab(id) {
+  document.querySelectorAll('.tab').forEach(t => {
+    t.classList.toggle('active', t.getAttribute('onclick').includes(`'${id}'`));
+  });
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + id).classList.add('active');
+  if (id === 'dend') drawDend();
+  if (id === 'bar')  drawBarCharts();
+}
+
+// ── SCATTER ───────────────────────────────────────────────────────────────────
+const scDatasets = SEG_ORDER.map(sk => {
+  const cfg = SEG_CFG[sk];
+  const pts = CUSTOMERS.filter(c => c.seg === sk).map(c => ({ x: c.freq, y: c.spend, label: c.id }));
+  return {
+    label: `${cfg.icon} ${cfg.label}`,
+    data: pts,
+    backgroundColor: cfg.color + 'CC',
+    borderColor: cfg.color,
+    pointRadius: 8,
+    pointHoverRadius: 11,
+    borderWidth: 1.5,
+  };
+});
+
+new Chart(document.getElementById('scatterChart'), {
+  type: 'scatter',
+  data: { datasets: scDatasets },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    scales: {
+      x: { title: { display: true, text: 'Tần suất ghé / tháng (lần)', font: { size: 12 } }, min: 0, max: 32 },
+      y: { title: { display: true, text: 'Chi tiêu TB (nghìn đồng)', font: { size: 12 } }, min: 0, max: 170 },
+    },
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: ctx => `${ctx.raw.label}: ${ctx.raw.x} lần · ${ctx.raw.y}K đ` } },
+    },
+    animation: { duration: 800 },
+  }
+});
+
+// Reference lines (plugin)
+const refLinesPlugin = {
+  id: 'refLines',
+  afterDraw(chart) {
+    const { ctx, chartArea: { left, right, top, bottom }, scales: { x, y } } = chart;
+    ctx.save();
+    ctx.setLineDash([5, 4]);
+    ctx.strokeStyle = 'rgba(100,116,139,0.35)';
+    ctx.lineWidth = 1;
+    [10, 80].forEach(xv => { const px = x.getPixelForValue(xv); ctx.beginPath(); ctx.moveTo(px, top); ctx.lineTo(px, bottom); ctx.stroke(); });
+    [75, 100].forEach(yv => { const py = y.getPixelForValue(yv); ctx.beginPath(); ctx.moveTo(left, py); ctx.lineTo(right, py); ctx.stroke(); });
+    ctx.restore();
+  }
+};
+Chart.register(refLinesPlugin);
+
+const scLeg = document.getElementById('sc-legend');
+SEG_ORDER.forEach(sk => {
+  const cfg = SEG_CFG[sk];
+  const cnt = CUSTOMERS.filter(c => c.seg === sk).length;
+  scLeg.innerHTML += `<span style="display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:3px;background:${cfg.color};display:inline-block"></span>${cfg.icon} ${cfg.label} (${cnt} KH)</span>`;
+});
+
+// ── SEGMENT PANEL ─────────────────────────────────────────────────────────────
+function buildSegPanel() {
+  const container = document.getElementById('seg-content');
+  SEG_ORDER.forEach(sk => {
+    const cfg = SEG_CFG[sk];
+    const pts = CUSTOMERS.filter(c => c.seg === sk);
+    const avgF = (pts.reduce((a, c) => a + c.freq, 0) / pts.length).toFixed(1);
+    const avgS = Math.round(pts.reduce((a, c) => a + c.spend, 0) / pts.length);
+    const ids = pts.map(c => c.id).join(' · ');
+    const card = document.createElement('div');
+    card.className = 'seg-card';
+    card.style.cssText = `border-color:${cfg.border};background:${cfg.bg}`;
+    card.innerHTML = `
+      <div class="seg-header">
+        <span class="seg-title" style="color:${cfg.textCol}">${cfg.icon} ${cfg.label} <span class="seg-count">(${pts.length} khách hàng)</span></span>
+        <span style="font-size:0.78rem;font-weight:700;padding:3px 12px;border-radius:20px;background:white;color:${cfg.textCol};border:1px solid ${cfg.border}">
+          ${sk==='VIP'?'Cao cấp':sk==='FREQUENT'?'Trung thành':sk==='POTENTIAL'?'Cần khai thác':'Cần kích hoạt lại'}
+        </span>
+      </div>
+      <div class="kv"><span>Tần suất ghé TB</span><b>${avgF} lần / tháng</b></div>
+      <div class="kv"><span>Chi tiêu TB</span><b>${avgS}K đồng / lần</b></div>
+      <div class="kv"><span>Đặc điểm</span><b style="font-size:0.82rem">${cfg.desc}</b></div>
+      <p class="members">${ids}</p>
+      <div class="rec" style="background:white;border-left-color:${cfg.color};color:${cfg.textCol}">
+        <strong>Khuyến nghị xử lý:</strong> ${cfg.rec}
+      </div>`;
+    container.appendChild(card);
+  });
+}
+buildSegPanel();
+
+// ── DATA TABLE ────────────────────────────────────────────────────────────────
+function renderTable() {
+  const seg = document.getElementById('filterSeg').value;
+  const sort = document.getElementById('sortCol').value;
+  let data = seg === 'ALL' ? [...CUSTOMERS] : CUSTOMERS.filter(c => c.seg === seg);
+  const [col, dir] = sort.split('-');
+  data.sort((a, b) => dir === 'desc' ? b[col === 'freq' ? 'freq' : 'spend'] - a[col === 'freq' ? 'freq' : 'spend']
+                                      : a[col === 'freq' ? 'freq' : 'spend'] - b[col === 'freq' ? 'freq' : 'spend']);
+  const body = document.getElementById('dataTbody');
+  body.innerHTML = '';
+  data.forEach(c => {
+    const cfg = SEG_CFG[c.seg];
+    const actions = { VIP:'Tặng thẻ Gold, mời trải nghiệm mới', FREQUENT:'Gợi ý combo upsell', POTENTIAL:'Voucher tần suất', DORMANT:'Email re-engagement' };
+    body.innerHTML += `<tr>
+      <td><strong>${c.id}</strong></td>
+      <td>${c.freq} lần</td>
+      <td>${c.spend}K</td>
+      <td><span class="pill" style="background:${cfg.bg};color:${cfg.textCol};border:1px solid ${cfg.border}">${cfg.icon} ${cfg.label}</span></td>
+      <td style="font-size:0.8rem;color:#64748b">${actions[c.seg]}</td>
+    </tr>`;
+  });
+}
+renderTable();
+
+// ── BAR + PIE ─────────────────────────────────────────────────────────────────
+let barDrawn = false;
+function drawBarCharts() {
+  if (barDrawn) return; barDrawn = true;
+  const labels = SEG_ORDER.map(sk => SEG_CFG[sk].label);
+  const colors = SEG_ORDER.map(sk => SEG_CFG[sk].color);
+  const avgFreq  = SEG_ORDER.map(sk => { const p=CUSTOMERS.filter(c=>c.seg===sk); return +(p.reduce((a,c)=>a+c.freq,0)/p.length).toFixed(1); });
+  const avgSpend = SEG_ORDER.map(sk => { const p=CUSTOMERS.filter(c=>c.seg===sk); return Math.round(p.reduce((a,c)=>a+c.spend,0)/p.length); });
+  const counts   = SEG_ORDER.map(sk => CUSTOMERS.filter(c=>c.seg===sk).length);
+
+  new Chart(document.getElementById('barFreq'), {
+    type:'bar', data:{ labels, datasets:[{ data:avgFreq, backgroundColor:colors, borderWidth:0 }]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>`${ctx.raw} lần/tháng`}}},
+      scales:{ y:{title:{display:true,text:'Lần/tháng'}, beginAtZero:true} } }
+  });
+  new Chart(document.getElementById('barSpend'), {
+    type:'bar', data:{ labels, datasets:[{ data:avgSpend, backgroundColor:colors, borderWidth:0 }]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>`${ctx.raw}K đ/lần`}}},
+      scales:{ y:{title:{display:true,text:'Nghìn đồng'}, beginAtZero:true} } }
+  });
+  new Chart(document.getElementById('pieChart'), {
+    type:'doughnut', data:{ labels, datasets:[{ data:counts, backgroundColor:colors, borderWidth:3, borderColor:'#fff' }]},
+    options:{ responsive:true, maintainAspectRatio:false, cutout:'55%',
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${ctx.raw} KH (${(ctx.raw/40*100).toFixed(0)}%)`}}} }
+  });
+  const pieLeg = document.getElementById('pie-legend');
+  SEG_ORDER.forEach((sk, i) => {
+    pieLeg.innerHTML += `<span style="display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:3px;background:${SEG_CFG[sk].color}"></span>${SEG_CFG[sk].icon} ${SEG_CFG[sk].label} – ${counts[i]} KH</span>`;
+  });
+}
+
+// ── DENDROGRAM (SVG thuần) ─────────────────────────────────────────────────────
+let dendDrawn = false;
+function drawDend() {
+  if (dendDrawn) return; dendDrawn = true;
+
+  const W=860, H=420, PT=30, PB=70, PL=48, PR=10;
+  const drawW=W-PL-PR, drawH=H-PT-PB;
+  const N=40;
+
+  // Thứ tự lá: VIP(8) | FREQUENT(12) | POTENTIAL(10) | DORMANT(10)
+  const leafSegs = [
+    ...Array(8).fill('VIP'),
+    ...Array(12).fill('FREQUENT'),
+    ...Array(10).fill('POTENTIAL'),
+    ...Array(10).fill('DORMANT'),
+  ];
+  const leafX = i => PL + (i + 0.5) * (drawW / N);
+  const yScale = v => PT + drawH * (1 - v);
+
+  const SEG_COLORS = { VIP:'#7c3aed', FREQUENT:'#059669', POTENTIAL:'#d97706', DORMANT:'#dc2626' };
+
+  // Các merge được định nghĩa thủ công (mức normalized 0–1)
+  // Nhóm VIP: lá 0-7
+  const merges = [];
+  // Nội bộ VIP
+  [[0,1],[2,3],[4,5],[6,7]].forEach(([l,r],i)=>merges.push({l1:l,r1:l,l2:r,r2:r,h:0.04+i*0.005}));
+  merges.push({l1:0,r1:1,l2:2,r2:3,h:0.08});
+  merges.push({l1:4,r1:5,l2:6,r2:7,h:0.09});
+  merges.push({l1:0,r1:3,l2:4,r2:7,h:0.14});
+  // Nội bộ FREQUENT (8-19)
+  [[8,9],[10,11],[12,13],[14,15],[16,17],[18,19]].forEach(([l,r],i)=>merges.push({l1:l,r1:l,l2:r,r2:r,h:0.04+i*0.004}));
+  merges.push({l1:8,r1:9,l2:10,r2:11,h:0.08});
+  merges.push({l1:12,r1:13,l2:14,r2:15,h:0.085});
+  merges.push({l1:16,r1:17,l2:18,r2:19,h:0.09});
+  merges.push({l1:8,r1:11,l2:12,r2:15,h:0.13});
+  merges.push({l1:8,r1:15,l2:16,r2:19,h:0.16});
+  // Nội bộ POTENTIAL (20-29)
+  [[20,21],[22,23],[24,25],[26,27],[28,29]].forEach(([l,r],i)=>merges.push({l1:l,r1:l,l2:r,r2:r,h:0.04+i*0.005}));
+  merges.push({l1:20,r1:21,l2:22,r2:23,h:0.09});
+  merges.push({l1:24,r1:25,l2:26,r2:27,h:0.095});
+  merges.push({l1:20,r1:23,l2:24,r2:27,h:0.13});
+  merges.push({l1:20,r1:27,l2:28,r2:29,h:0.16});
+  // Nội bộ DORMANT (30-39)
+  [[30,31],[32,33],[34,35],[36,37],[38,39]].forEach(([l,r],i)=>merges.push({l1:l,r1:l,l2:r,r2:r,h:0.04+i*0.005}));
+  merges.push({l1:30,r1:31,l2:32,r2:33,h:0.085});
+  merges.push({l1:34,r1:35,l2:36,r2:37,h:0.09});
+  merges.push({l1:30,r1:33,l2:34,r2:37,h:0.13});
+  merges.push({l1:30,r1:37,l2:38,r2:39,h:0.15});
+  // Gom VIP+FREQUENT
+  merges.push({l1:0,r1:7,l2:8,r2:19,h:0.55});
+  // Gom POT+DORMANT
+  merges.push({l1:20,r1:29,l2:30,r2:39,h:0.52});
+  // Gom tất cả
+  merges.push({l1:0,r1:19,l2:20,r2:39,h:0.98});
+
+  const cutH = 0.35;
+
+  const svg = document.getElementById('dendSvg');
+  let ns = '';
+
+  // Y-axis
+  [0,0.2,0.4,0.6,0.8,1.0].forEach(v => {
+    const y = yScale(v);
+    ns += `<line x1="${PL}" x2="${PL-5}" y1="${y}" y2="${y}" stroke="#94a3b8" stroke-width="0.8"/>`;
+    ns += `<text x="${PL-7}" y="${y+4}" font-size="9" fill="#94a3b8" text-anchor="end">${v.toFixed(1)}</text>`;
+  });
+  ns += `<text x="10" y="${H/2}" font-size="9" fill="#94a3b8" text-anchor="middle" transform="rotate(-90,10,${H/2})">Khoảng cách liên kết</text>`;
+
+  // Merge lines
+  merges.forEach(m => {
+    const lx = m.l1===m.r1 ? leafX(m.l1) : (leafX(m.l1)+leafX(m.r1))/2;
+    const rx = m.l2===m.r2 ? leafX(m.l2) : (leafX(m.l2)+leafX(m.r2))/2;
+    const my = yScale(m.h);
+    const col = m.h > cutH ? '#94a3b8' : '#1d9e75';
+    const lBot = yScale(0), rBot = yScale(0);
+    ns += `<polyline points="${lx},${lBot} ${lx},${my} ${rx},${my} ${rx},${rBot}" fill="none" stroke="${col}" stroke-width="1.6" stroke-linejoin="round"/>`;
+  });
+
+  // Cut line
+  const cutY = yScale(cutH);
+  ns += `<line x1="${PL}" x2="${W-PR}" y1="${cutY}" y2="${cutY}" stroke="#dc2626" stroke-width="2" stroke-dasharray="7,4"/>`;
+  ns += `<text x="${W-PR-4}" y="${cutY-5}" font-size="10" fill="#dc2626" text-anchor="end" font-weight="600">Ngưỡng cắt → k = 4 nhóm</text>`;
+
+  // Leaf dots + labels
+  leafSegs.forEach((seg, i) => {
+    const x = leafX(i), y = yScale(0);
+    const col = SEG_COLORS[seg];
+    ns += `<line x1="${x}" x2="${x}" y1="${y}" y2="${y+8}" stroke="${col}" stroke-width="1.2"/>`;
+    ns += `<circle cx="${x}" cy="${y+11}" r="4" fill="${col}"/>`;
+  });
+
+  // Group labels
+  const groups = [
+    { l:0, r:7, key:'VIP' },
+    { l:8, r:19, key:'FREQUENT' },
+    { l:20, r:29, key:'POTENTIAL' },
+    { l:30, r:39, key:'DORMANT' },
+  ];
+  groups.forEach(g => {
+    const cx = (leafX(g.l) + leafX(g.r)) / 2;
+    const cfg = SEG_CFG[g.key];
+    ns += `<text x="${cx}" y="${H-PB+46}" font-size="11" fill="${cfg.color}" text-anchor="middle" font-weight="600">${cfg.icon} ${cfg.label}</text>`;
+    ns += `<line x1="${leafX(g.l)+4}" x2="${leafX(g.r)-4}" y1="${H-PB+30}" y2="${H-PB+30}" stroke="${cfg.color}" stroke-width="1.5" stroke-dasharray="3,2"/>`;
+  });
+
+  svg.innerHTML = ns;
+}
+
+// Khởi tạo lần đầu scatter
+Chart.unregister(refLinesPlugin);
+</script>
+</body>
+</html>
