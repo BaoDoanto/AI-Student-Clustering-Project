@@ -4,12 +4,18 @@ import numpy as np
 
 # Thêm phần này để code của bạn có dữ liệu để chạy
 # (Đây là dữ liệu mẫu để khớp với logic của bạn)
-df_raw = pd.read_csv("du_lieu_sinh_vien.csv")
+try:
+    df_raw = pd.read_csv("DuLieuSinhVien.csv")
+    df_raw.columns = [c.strip() for c in df_raw.columns] # Xóa khoảng trắng thừa
+except:
+    st.error("Không tìm thấy file DuLieuSinhVien.csv")
+    st.stop()
 
 # --- ĐÂY LÀ CODE CỦA BẠN (GIỮ NGUYÊN) ---
+col_drl = 'Điểm RL' if 'Điểm RL' in df_raw.columns else 'Diem_RL'
 def phan_tich_va_khuyen_nghi(row):
     gpa = row['GPA']
-    drl = row['Điểm RL']
+    drl = row[col_drl]
     
     # Định nghĩa logic khắc phục
     if gpa >= 3.2 and drl < 80:
@@ -31,17 +37,15 @@ def phan_tich_va_khuyen_nghi(row):
     return pd.Series([nhan, giai_phap])
 
 # Áp dụng logic vào DataFrame kết quả
-df_raw[['Đặc trưng Nhóm', 'Giải pháp Quản lý đào tạo']] = df_raw.apply(phan_tich_va_khuyen_nghi, axis=1)
-
+df_raw[['Đặc trưng Nhóm', 'Giải pháp']] = df_raw.apply(phan_tich_va_khuyen_nghi, axis=1)
 # hãy dùng st.write hoặc st.markdown de show ket qua
 st.subheader("📊 BÁO CÁO GIẢI PHÁP QUẢN LÝ ĐÀO TẠO:")
 st.markdown("---")
 
 # Dùng vòng lặp để hiển thị lên web thay vì Terminal
-for index, row in df_raw.sort_values(by='GPA', ascending=False).iterrows():
-    # Tạo một container nhỏ cho mỗi sinh viên để nhìn rõ hơn
+for index, row in df_raw.iterrows():
     with st.container(border=True):
-        st.write(f"**[{row['Sinh viên']}]** - GPA: {row['GPA']} | ĐRL: {row['Điểm RL']} -> Thuộc {row['Nhóm (Cluster)']}")
+        st.write(f"**[{row['Sinh viên']}]** - GPA: {row['GPA']} | ĐRL: {row[col_drl]}")
         st.write(f"**Phân loại:** {row['Đặc trưng Nhóm']}")
-        st.write(f"**=>** {row['Giải pháp Quản lý đào tạo']}")
+        st.write(f"**=>** {row['Giải pháp']}")
 # --- HẾT CODE CỦA BẠN ---
